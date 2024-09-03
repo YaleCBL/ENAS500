@@ -92,7 +92,7 @@ def animate(i, x_t, x_dot_t):
 for case in damping_cases:
     for i, ic in enumerate(initial_conditions):
         dt = 0.1
-        t = np.arange(0, t_max, dt)
+        t = np.arange(0, t_max + dt, dt)
         x_t, x_dot_t, _, damping_situation = system_dynamics_and_roots(
             t, case["omega_0"], case["zeta"], ic["x0"], ic["x_dot0"]
         )
