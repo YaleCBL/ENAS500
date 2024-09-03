@@ -121,14 +121,14 @@ for case in damping_cases:
 
         # Set up plot limits and labels with larger text
         ax_time.set_xlim(0, t_max)
-        ax_time.set_ylim(-2, 2)
+        ax_time.set_ylim(-2.1, 2.1)
         ax_time.set_xticks([0, 5, 10, 15, 20])
         ax_time.set_xlabel("Time", color=light_blue, fontsize=14)
         ax_time.set_ylabel("x(t)", color=light_blue, fontsize=14)
         ax_time.set_title("Position over Time", color=light_blue, fontsize=16)
 
-        ax_phase.set_xlim(-2, 2)
-        ax_phase.set_ylim(-2, 2)
+        ax_phase.set_xlim(-2.1, 2.1)
+        ax_phase.set_ylim(-2.1, 2.1)
         ax_phase.set_xticks([-2, -1, 0, 1, 2])
         ax_phase.set_aspect("equal")
         ax_phase.set_xlabel("x", color=light_blue, fontsize=14)
@@ -136,12 +136,10 @@ for case in damping_cases:
         ax_phase.set_title("Phase Diagram", color=light_blue, fontsize=16)
 
         ax_system.set_xlim(-1, 1)
-        ax_system.set_ylim(-2, 2)
-        ax_system.set_xticks([-2, -1, 0, 1, 2])
-        ax_system.set_aspect("equal")
-        # Removed xlabel from the system plot
-        ax_system.set_ylabel("Position (x)", color=light_blue, fontsize=14)
+        ax_system.set_ylim(-2.1, 2.1)
         ax_system.set_xticks([])
+        ax_system.set_aspect("equal")
+        ax_system.set_ylabel("Position (x)", color=light_blue, fontsize=14)
         ax_system.set_yticks(np.arange(-2, 3, 1))
         ax_system.set_title("System Visualization", color=light_blue, fontsize=16)
 
@@ -169,10 +167,10 @@ for i, ic in enumerate(initial_conditions):
         ax.grid(True, color=white, alpha=0.2)
         ax.tick_params(colors=white)
         ax.set_yticks([-2, -1, 0, 1, 2])
+        ax.set_ylim(-2.1, 2.1)
 
     # Time evolution plot
     ax_plot.set_xlim(0, t_max)
-    ax_plot.set_ylim(-2, 2)
     ax_plot.set_xticks([0, 5, 10, 15, 20])
     ax_plot.axhline(0, color=white, lw=0.5)  # x-axis at x=0
     ax_plot.set_xlabel("Time", color="white", fontsize=14)
@@ -195,16 +193,15 @@ for i, ic in enumerate(initial_conditions):
             "o",
             color=case["color"],
             markersize=10,
+            label=damping_situation,
         )
 
         # Plot phase plane trajectories
         ax_phase.plot(x_t, x_dot_t, label=damping_situation, color=case["color"])
 
     # Setup for the phase plane plot
-    ax_phase.set_xlim(-2, 2)
-    ax_phase.set_ylim(-2, 2)
+    ax_phase.set_xlim(-2.1, 2.1)
     ax_phase.set_xticks([-2, -1, 0, 1, 2])
-    ax_phase.set_yticks([-2, -1, 0, 1, 2])
     ax_phase.set_aspect("equal")
     ax_phase.axhline(0, color=white, lw=0.5)
     ax_phase.axvline(0, color=white, lw=0.5)
@@ -214,7 +211,6 @@ for i, ic in enumerate(initial_conditions):
 
     # Setup for the roots plot
     ax_roots.set_xlim(-4, 1)
-    ax_roots.set_ylim(-2, 2)
     ax_roots.axhline(0, color=white, lw=0.5)
     ax_roots.axvline(0, color=white, lw=0.5)
     ax_roots.set_aspect("equal")
@@ -223,16 +219,12 @@ for i, ic in enumerate(initial_conditions):
     ax_roots.set_title("Roots of Characteristic Polynomial", color="white", fontsize=16)
 
     # Add legend to the time evolution plot and phase plane plot
-    legend_plot = ax_plot.legend(
-        loc="upper right", fontsize=12, facecolor="black", edgecolor="white"
-    )
-    legend_phase = ax_phase.legend(
-        loc="upper right", fontsize=12, facecolor="black", edgecolor="white"
-    )
-    for text in legend_plot.get_texts():
-        text.set_color("white")  # Set legend text color to white
-    for text in legend_phase.get_texts():
-        text.set_color("white")  # Set legend text color to white
+    for ax in [ax_plot, ax_phase, ax_roots]:
+        legend = ax.legend(
+            loc="best", fontsize=12, facecolor="black", edgecolor="white"
+        )
+        for text in legend.get_texts():
+            text.set_color("white")
 
     # Save the combined plot
     plt.savefig(f"combined_ic{i+1}.png", dpi=150, facecolor="black")
@@ -257,14 +249,17 @@ for ax, case in zip(axs, damping_cases):
     )
 
     # Set up the axis labels and titles
-    ax.set_xlim(-2, 2)
-    ax.set_ylim(-2, 2)
+    ax.set_xlim(-2.1, 2.1)
+    ax.set_ylim(-2.1, 2.1)
     ax.set_aspect("equal")
     ax.axhline(0, color=white, lw=0.5)
     ax.axvline(0, color=white, lw=0.5)
     ax.set_xlabel("x", color="white", fontsize=14)
     ax.set_ylabel("x'", color="white", fontsize=14)
     ax.set_title(damping_situation, color="white", fontsize=16)
+
+    add_vector_field(ax, case["omega_0"], case["zeta"])
+
 
 # Save the vector field comparison plot
 plt.savefig("vector_field_comparison.png", dpi=150, facecolor="black")
