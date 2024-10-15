@@ -34,24 +34,24 @@ n_values = [1, 2, 3, 4]
 # Parameters
 L = 1.0       # Length of the domain
 Nx = 100      # Number of spatial grid points
-T = 0.1       # Total simulation time
 
-# Thermal diffusivity for each boundary condition type
-alpha_values = {
-    'dirichlet': 0.5,
-    'neumann': 0.8,
-    'mixed': 1.0,
-}
+# Equation selection: 'heat' or 'wave'
+equation_type = 'wave'  # Change to 'wave' to solve the wave equation
+
+# Adjust total simulation time based on the equation
+if equation_type == 'heat':
+    T = 0.1    # Total simulation time for heat equation
+elif equation_type == 'wave':
+    T = 1.0    # Longer total simulation time for wave equation
 
 # Loop over boundary conditions
 for bc in boundary_conditions_list:
     bc_name = bc['name']
-    alpha = alpha_values[bc_name]
     boundary_type = bc['type']
 
     # Loop over sine wave numbers
     for n in n_values:
-        example_name = f"{bc_name}_boundaries_{n}_sine"
+        example_name = f"{bc_name}_boundaries_{n}_sine_{equation_type}"
 
         print(f"Running example: {example_name}")
 
@@ -59,8 +59,22 @@ for bc in boundary_conditions_list:
         x = np.linspace(0, L, Nx)
 
         # Adjust dt to satisfy the stability condition
-        dt_stable = dx**2 / (2 * alpha)
-        dt = dt_stable * 0.5  # Use half the maximum stable time step for safety
+        if equation_type == 'heat':
+            # Thermal diffusivity for each boundary condition type
+            alpha_values = {
+                'dirichlet': 0.5,
+                'neumann': 0.8,
+                'mixed': 1.0,
+            }
+            alpha = alpha_values[bc_name]
+            dt_stable = dx**2 / (2 * alpha)
+            dt = dt_stable * 0.5  # Use half the maximum stable time step for safety
+        elif equation_type == 'wave':
+            # Wave speed
+            c = 1.0
+            dt_stable = dx / c
+            dt = dt_stable * 0.9  # Use 90% of the maximum stable time step for safety
+
         Nt = int(T / dt)
         t_array = np.linspace(0, T, Nt)
 
@@ -89,54 +103,121 @@ for bc in boundary_conditions_list:
         U = np.zeros((Nt, Nx))  # Array to store u at all time steps
         U[0, :] = u.copy()
 
+        # Initialize variables for wave equation
+        if equation_type == 'wave':
+            # Initial velocity (assuming zero initial velocity)
+            initial_velocity = lambda x: np.zeros_like(x)
+            v = initial_velocity(x)
+            u_old = u.copy()
+
+            # Compute u at the first time step using initial conditions
+            u[1:-1] = u_old[1:-1] + dt * v[1:-1] + 0.5 * (c * dt / dx) ** 2 * (
+                u_old[2:] - 2 * u_old[1:-1] + u_old[:-2]
+            )
+            # Apply boundary conditions to u
+            def apply_boundary_conditions(u_array, t):
+                if boundary_type == 'Dirichlet':
+                    u_array[0] = bc['left'](u_array, t)
+                    u_array[-1] = bc['right'](u_array, t)
+                elif boundary_type == 'Neumann':
+                    u_array[0] = u_array[1] - bc['left'](u_array, t) * dx
+                    u_array[-1] = u_array[-2] + bc['right'](u_array, t) * dx
+                elif boundary_type == 'Mixed':
+                    # Left boundary
+                    if bc['left'] == 'Dirichlet':
+                        u_array[0] = bc['left_value'](u_array, t)
+                    elif bc['left'] == 'Neumann':
+                        u_array[0] = u_array[1] - bc['left_value'](u_array, t) * dx
+                    # Right boundary
+                    if bc['right'] == 'Dirichlet':
+                        u_array[-1] = bc['right_value'](u_array, t)
+                    elif bc['right'] == 'Neumann':
+                        u_array[-1] = u_array[-2] + bc['right_value'](u_array, t) * dx
+                else:
+                    raise ValueError("Invalid boundary condition type.")
+                return u_array
+
+            # Adjust Dirichlet boundary values if needed
+            if boundary_type == 'Dirichlet' and n > 1:
+                bc['left'] = lambda u, t: 0.5
+                bc['right'] = lambda u, t: 0.5
+            if boundary_type == 'Mixed' and n > 1:
+                bc['right_value'] = lambda u, t: 0.5
+
+            # Apply boundary conditions
+            u = apply_boundary_conditions(u, dt)
+            U[1, :] = u.copy()
+            start_step = 2  # Start time-stepping from step 2
+
+        else:
+            # For heat equation, only need apply boundary conditions function
+            def apply_boundary_conditions(u_array, t):
+                if boundary_type == 'Dirichlet':
+                    u_array[0] = bc['left'](u_array, t)
+                    u_array[-1] = bc['right'](u_array, t)
+                elif boundary_type == 'Neumann':
+                    u_array[0] = u_array[1] - bc['left'](u_array, t) * dx
+                    u_array[-1] = u_array[-2] + bc['right'](u_array, t) * dx
+                elif boundary_type == 'Mixed':
+                    # Left boundary
+                    if bc['left'] == 'Dirichlet':
+                        u_array[0] = bc['left_value'](u_array, t)
+                    elif bc['left'] == 'Neumann':
+                        u_array[0] = u_array[1] - bc['left_value'](u_array, t) * dx
+                    # Right boundary
+                    if bc['right'] == 'Dirichlet':
+                        u_array[-1] = bc['right_value'](u_array, t)
+                    elif bc['right'] == 'Neumann':
+                        u_array[-1] = u_array[-2] + bc['right_value'](u_array, t) * dx
+                else:
+                    raise ValueError("Invalid boundary condition type.")
+                return u_array
+
+            # Adjust Dirichlet boundary values if needed
+            if boundary_type == 'Dirichlet' and n > 1:
+                bc['left'] = lambda u, t: 0.5
+                bc['right'] = lambda u, t: 0.5
+            if boundary_type == 'Mixed' and n > 1:
+                bc['right_value'] = lambda u, t: 0.5
+
+            # Apply boundary conditions
+            u = apply_boundary_conditions(u, 0)
+            start_step = 1  # Start time-stepping from step 1
+
         # Store the solution at each time step for animation
         u_history = []
         frame_interval = max(1, Nt // 300)  # Store approximately 300 frames
 
-        # Define boundary condition functions
-        def apply_boundary_conditions(u, t):
-            if boundary_type == 'Dirichlet':
-                u[0] = bc['left'](u, t)
-                u[-1] = bc['right'](u, t)
-            elif boundary_type == 'Neumann':
-                u[0] = u[1] - bc['left'](u, t) * dx
-                u[-1] = u[-2] + bc['right'](u, t) * dx
-            elif boundary_type == 'Mixed':
-                # Left boundary
-                if bc['left'] == 'Dirichlet':
-                    u[0] = bc['left_value'](u, t)
-                elif bc['left'] == 'Neumann':
-                    u[0] = u[1] - bc['left_value'](u, t) * dx
-                # Right boundary
-                if bc['right'] == 'Dirichlet':
-                    u[-1] = bc['right_value'](u, t)
-                elif bc['right'] == 'Neumann':
-                    u[-1] = u[-2] + bc['right_value'](u, t) * dx
-            else:
-                raise ValueError("Invalid boundary condition type.")
-            return u
-
-        # Adjust Dirichlet boundary values if needed
-        if boundary_type == 'Dirichlet' and n > 1:
-            bc['left'] = lambda u, t: 0.5
-            bc['right'] = lambda u, t: 0.5
-        if boundary_type == 'Mixed' and n > 1:
-            bc['right_value'] = lambda u, t: 0.5
-
         # Time-stepping loop
-        for n_step in range(1, Nt):
+        for n_step in range(start_step, Nt):
             t = n_step * dt
-            # Compute the interior points
-            u_new[1:-1] = u[1:-1] + alpha * dt / dx**2 * (u[2:] - 2 * u[1:-1] + u[:-2])
-            # Apply boundary conditions
-            u_new = apply_boundary_conditions(u_new, t)
-            # Update the solution
-            u = u_new.copy()
+            if equation_type == 'heat':
+                # Compute the interior points for heat equation
+                u_new[1:-1] = u[1:-1] + alpha * dt / dx**2 * (
+                    u[2:] - 2 * u[1:-1] + u[:-2]
+                )
+                # Apply boundary conditions
+                u_new = apply_boundary_conditions(u_new, t)
+                # Update the solution
+                u = u_new.copy()
+            elif equation_type == 'wave':
+                # Compute the interior points for wave equation
+                u_new[1:-1] = (
+                    2 * u[1:-1]
+                    - u_old[1:-1]
+                    + (c * dt / dx) ** 2 * (u[2:] - 2 * u[1:-1] + u[:-2])
+                )
+                # Apply boundary conditions
+                u_new = apply_boundary_conditions(u_new, t)
+                # Update the solution arrays
+                u_old = u.copy()
+                u = u_new.copy()
+
             # Store u in U for the 3D plot
             U[n_step, :] = u.copy()
             # Store frames for animation at specified intervals
             if n_step % frame_interval == 0:
-                u_history.append(u.copy())
+                u_history.append((u.copy(), t))
 
         # Set up the figure with two subplots
         fig = plt.figure(figsize=(14, 6))  # Increased figure width for a larger 3D plot
@@ -152,18 +233,16 @@ for bc in boundary_conditions_list:
         ax1.tick_params(axis='y', colors='white', which='both')
         ax1.xaxis.label.set_color('white')
         ax1.yaxis.label.set_color('white')
-        # Remove the title
-        # ax1.set_title(f'1D Heat Equation - {example_name}')
         ax1.set_xlim(0, L)   # X-axis from 0 to L (space)
-        ax1.set_ylim(0, 1)   # Y-axis from 0 to 1 (temperature)
+        ax1.set_ylim(np.min(U), np.max(U))   # Y-axis adjusted based on solution
         ax1.set_xlabel('x')
         ax1.set_ylabel('u(x, t)')
 
         # Set major ticks
         ax1.set_xticks([0, L])
         ax1.set_xticklabels(['0', 'L'])
-        ax1.set_yticks([0, 1])
-        ax1.set_yticklabels(['0', '1'])
+        ax1.set_yticks([np.min(U), np.max(U)])
+        ax1.set_yticklabels([f'{np.min(U):.1f}', f'{np.max(U):.1f}'])
 
         # Remove minor ticks
         ax1.xaxis.set_minor_locator(plt.NullLocator())
@@ -185,19 +264,17 @@ for bc in boundary_conditions_list:
         ax2.set_xlabel('x')
         ax2.set_ylabel('t')
         ax2.set_zlabel('u(x, t)')
-        # Remove the title
-        # ax2.set_title('Temperature Distribution Over Time', color='white')
         ax2.set_xlim(0, L)  # x-axis from 0 to L
         ax2.set_ylim(0, T)
-        ax2.set_zlim(0, 1)
+        ax2.set_zlim(np.min(U), np.max(U))
 
         # Set x-axis labels only at 0 and L
         ax2.set_xticks([0, L])
         ax2.set_xticklabels(['0', 'L'])
 
-        # Set z-axis (u-axis) labels only at 0 and 1
-        ax2.set_zticks([0, 1])
-        ax2.set_zticklabels(['0', '1'])
+        # Set z-axis (u-axis) labels
+        ax2.set_zticks([np.min(U), np.max(U)])
+        ax2.set_zticklabels([f'{np.min(U):.1f}', f'{np.max(U):.1f}'])
 
         # Prepare data for 3D plot
         X_mesh, T_mesh = np.meshgrid(x, t_array)
@@ -208,7 +285,7 @@ for bc in boundary_conditions_list:
         ax2.view_init(elev=30, azim=-60)
 
         # Move the red line slightly up on the u-axis
-        epsilon = 0.0  # Doubled the offset to lift the line
+        epsilon = 0.0  # Offset to lift the line
         # Add a red line to highlight the current solution in the 3D plot
         current_line, = ax2.plot([], [], [], color='red', linewidth=3, zorder=2)
 
@@ -221,13 +298,12 @@ for bc in boundary_conditions_list:
 
         # Animation function
         def animate(i):
-            u = u_history[i]
-            current_t = t_array[i * frame_interval]
+            u_anim, current_t = u_history[i]
             # Update the 2D plot
-            line1.set_data(x, u)
-            # Update the red line in the 3D plot, moving it slightly up
+            line1.set_data(x, u_anim)
+            # Update the red line in the 3D plot
             current_line.set_data(x, [current_t]*len(x))
-            current_line.set_3d_properties(u + epsilon)
+            current_line.set_3d_properties(u_anim + epsilon)
             return line1, current_line
 
         # Create the animation
@@ -235,7 +311,7 @@ for bc in boundary_conditions_list:
                                       init_func=init, blit=True, interval=33)
 
         # Save the animation as an MP4 video
-        output_filename = f"heat_{example_name}.mp4"
+        output_filename = f"{equation_type}_{example_name}.mp4"
         print(f"Saving animation to {output_filename}")
         Writer = animation.writers['ffmpeg']
         writer = Writer(fps=30, metadata=dict(artist='User'), bitrate=1800)
